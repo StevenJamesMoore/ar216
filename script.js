@@ -84,16 +84,16 @@ let WEEK_CONFIG = {
 };
 
 /*************** State + utils ***************/
-const state={ participant:Math.random().toString(36).slice(2,10), mode:'idle', missionIdx:-1, events:[], lastTs:performance.now(), anchor:{x:0,y:0,s:300,ok:false}, lastPoseTs:0, hand:{x:0,y:0,visible:false,pinch:false, dragEl:null}, scores:{} };
+const state={ participant:Math.random().toString(36).slice(2,10), mode:'idle', missionIdx:-1, events:[], lastTs:performance.now(), anchor:{x:0,y:0,s:300,ok:false}, lastPoseTs:0, hand:{x:0,y:0,visible:false,pinch:false, dragEl:null}, scores:{}, showShoulderFigures:false };
 const $=s=>document.querySelector(s);
 function log(action,payload={}){const now=performance.now(); const mis = (state.missionIdx>=0? WEEK_CONFIG.missions[state.missionIdx].id : 'onboarding'); state.events.push({participant_id:state.participant, condition:state.mode, mission:mis, action, payload, timestamp_ms:Date.now(), latency_ms:Math.round(now-state.lastTs)}); state.lastTs=now;}
 function swapScreens(id){['#screenOnboarding','#screenMission','#screenWrap'].forEach(sel=>$(sel).classList.add('hidden')); $(id).classList.remove('hidden');}
 
 /*************** Pose + Hands ***************/
-const trkLabel=$('#trk'), hud=$('#hud'), cursorDot=$('#cursorDot');
+const trkLabel=$('#trk'), hud=$('#hud'), cursorDot=$('#cursorDot'), leftShoulderFigure=$('#leftShoulderFigure'), rightShoulderFigure=$('#rightShoulderFigure'), btnToggleShoulders=$('#btnToggleShoulders');
 let poseDetector=null, handDetector=null
 
-let mpPose = null, mpHands = null;
+let mpPose = null, mpHands = null, mpFaceMesh = null;
 let poseRes = null, handsRes = null;
 let videoStream = null, rafId = null, running = false;
 let faceRes=null, SNAP=false;  // Face landmarks + one-shot “snap” recenter
@@ -171,22 +171,23 @@ async function startCamera(){
 
 // [!MODIFIED]
 function use2D(fromError=false){
-  state.mode='2d'; 
-  trkLabel.textContent=fromError?'2D (fallback)':'2D'; 
+  state.mode='2d';
+  trkLabel.textContent=fromError?'2D (fallback)':'2D';
   if(videoStream){
     try{videoStream.getTracks().forEach(t=>t.stop());}catch(_){}
-  } 
-  $('#video').classList.add('hidden'); 
-  cancelAnimationFrame(rafId); 
-  running=false; 
-  
+  }
+  $('#video').classList.add('hidden');
+  cancelAnimationFrame(rafId);
+  running=false;
+
   // [!FIX] Updated transform logic to match new CSS
-  const vp=$('#viewport').getBoundingClientRect(); 
+  const vp=$('#viewport').getBoundingClientRect();
   const targetX = vp.width / 2;
   const targetY = vp.height * 0.56;
-  hud.style.transform=`translate(${targetX - hud.offsetWidth/2}px, ${targetY - hud.offsetHeight/2}px)`; 
-  
+  hud.style.transform=`translate(${targetX - hud.offsetWidth/2}px, ${targetY - hud.offsetHeight/2}px)`;
+
   cursorDot.classList.add('hidden');
+  hideShoulderFigures();
 }
 
 function lerp(a,b,t){return a+(b-a)*t}
@@ -198,6 +199,48 @@ function clearCursor(){state.hand.visible=false; cursorDot.classList.add('hidden
 function clientPointFromCursor(){const vp=$('#viewport').getBoundingClientRect(); return {x:vp.left+state.hand.x, y:vp.top+state.hand.y}}
 function isDropContainer(el){return el && (el.classList.contains('drop') || el.closest('.drop'))}
 function handlePinchInteractions(){const pin=state.hand.pinch; const {x,y}=clientPointFromCursor(); const el=document.elementFromPoint(x,y); if(!pin && state.hand.dragEl){ state.hand.dragEl.classList.remove('lifted'); state.hand.dragEl=null; return; } if(pin && !state.hand.dragEl){ if(el && (el.classList.contains('chip')||el.classList.contains('orderItem'))){ state.hand.dragEl=el; el.classList.add('lifted'); log('drag_start',{el:el.textContent.trim(), via:'pinch'}) }} if(state.hand.dragEl){ const over=document.elementFromPoint(x,y); const drop=isDropContainer(over); if(drop){ const c = over.classList.contains('drop')? over : over.closest('.drop'); if(c && state.hand.dragEl.parentElement!==c){ c.appendChild(state.hand.dragEl); } } }}
+
+function hideShoulderFigures(){ if(leftShoulderFigure){ leftShoulderFigure.classList.remove('visible'); leftShoulderFigure.setAttribute('aria-hidden','true'); } if(rightShoulderFigure){ rightShoulderFigure.classList.remove('visible'); rightShoulderFigure.setAttribute('aria-hidden','true'); } }
+
+function setShoulderFiguresEnabled(enabled){ state.showShoulderFigures=enabled; if(btnToggleShoulders){ btnToggleShoulders.classList.toggle('active', enabled); btnToggleShoulders.textContent = enabled ? 'Hide Shoulder Buddies' : 'Shoulder Buddies'; btnToggleShoulders.setAttribute('aria-pressed', enabled?'true':'false'); } if(!enabled){ hideShoulderFigures(); } }
+
+function placeShoulderFigure(el, point, size){ if(!el) return; el.style.width=`${size}px`; el.style.height=`${size}px`; el.style.left=`${point.x}px`; el.style.top=`${point.y - size*0.48}px`; el.classList.add('visible'); el.setAttribute('aria-hidden','false'); }
+
+function updateShoulderFigures(poseKp){
+  if(!state.showShoulderFigures){
+    hideShoulderFigures();
+    return;
+  }
+
+  const left = poseKp.find(k=>k.name==='left_shoulder');
+  const right = poseKp.find(k=>k.name==='right_shoulder');
+  const leftValid = left && (left.score??0) > 0.35;
+  const rightValid = right && (right.score??0) > 0.35;
+  const leftPoint = leftValid ? mapVideoToViewport(left.x, left.y) : null;
+  const rightPoint = rightValid ? mapVideoToViewport(right.x, right.y) : null;
+
+  let span = null;
+  if(leftPoint && rightPoint){
+    span = Math.hypot(rightPoint.x - leftPoint.x, rightPoint.y - leftPoint.y);
+  } else if(state.anchor && state.anchor.s){
+    span = state.anchor.s;
+  }
+  const baseSize = span ? Math.min(140, Math.max(60, span * 0.45)) : 80;
+
+  if(leftPoint){
+    placeShoulderFigure(leftShoulderFigure, leftPoint, baseSize);
+  } else if(leftShoulderFigure){
+    leftShoulderFigure.classList.remove('visible');
+    leftShoulderFigure.setAttribute('aria-hidden','true');
+  }
+
+  if(rightPoint){
+    placeShoulderFigure(rightShoulderFigure, rightPoint, baseSize);
+  } else if(rightShoulderFigure){
+    rightShoulderFigure.classList.remove('visible');
+    rightShoulderFigure.setAttribute('aria-hidden','true');
+  }
+}
 function drawPoseSkeleton(ctx,toCanvas,kp){const conn=[['left_shoulder','right_shoulder'],['left_shoulder','left_elbow'],['left_elbow','left_wrist'],['right_shoulder','right_elbow'],['right_elbow','right_wrist'],['left_shoulder','left_hip'],['right_shoulder','right_hip'],['left_hip','right_hip']]; ctx.lineWidth=2; ctx.strokeStyle='white'; conn.forEach(([a,b])=>{const A=getPointByName(kp,a), B=getPointByName(kp,b); if(!(A&&B)) return; const Ac=toCanvas(A), Bc=toCanvas(B); ctx.beginPath(); ctx.moveTo(Ac.x,Ac.y); ctx.lineTo(Bc.x,Bc.y); ctx.stroke();}); ctx.fillStyle='white'; kp.forEach(pt=>{ if(pt.score>0.3){ const c=toCanvas(pt); ctx.beginPath(); ctx.arc(c.x,c.y,2,0,Math.PI*2); ctx.fill(); } });}
 function drawHandSkeleton(ctx,toCanvas,kp){const C=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]]; ctx.lineWidth=2; ctx.strokeStyle='rgba(106,166,255,.9)'; C.forEach(([i,j])=>{const A=kp[i],B=kp[j]; if(!(A&&B)) return; const Ac=toCanvas(A), Bc=toCanvas(B); ctx.beginPath(); ctx.moveTo(Ac.x,Ac.y); ctx.lineTo(Bc.x,Bc.y); ctx.stroke();}); ctx.fillStyle='rgba(106,166,255,1)'; kp.forEach(pt=>{const c=toCanvas(pt); ctx.beginPath(); ctx.arc(c.x,c.y,2,0,Math.PI*2); ctx.fill();});}
 function drawDebug(poses,hands){const c=$('#debug'), v=$('#video'), vp=$('#viewport'); const vr=v.getBoundingClientRect(), pr=vp.getBoundingClientRect(); const w=c.width=260, h=c.height=190; const ctx=c.getContext('2d'); ctx.clearRect(0,0,w,h); function toCanvas(pt){const pv=mapVideoToViewport(pt.x,pt.y); return {x:(pv.x/pr.width)*w, y:(pv.y/pr.height)*h}} if(poses&&poses.length){drawPoseSkeleton(ctx,toCanvas,poses[0].keypoints)} if(hands&&hands.length){drawHandSkeleton(ctx,toCanvas,hands[0].keypoints)}}
@@ -275,10 +318,12 @@ async function frameLoop(){
     }
   }
 
+  updateShoulderFigures(poseKp);
+
   if(handKp){
     const idx = handKp.find(p=>p.name==='index_finger_tip');
     const thb = handKp.find(p=>p.name==='thumb_tip');
-    
+
     let pin = false; // Default to not pinching
     
     // [!MODIFIED] Always show cursor if index finger is visible
@@ -464,8 +509,10 @@ const dlg=$('#importDlg'); $('#btnImport').addEventListener('click', ()=>dlg.sho
 $('#btnStart').addEventListener('click', startCamera);
 $('#btn2D').addEventListener('click', ()=>{use2D(false); log('start_2d')});
 $('#btnToggleDebug').addEventListener('click', ()=>$('#debug').classList.toggle('hidden'));
+if(btnToggleShoulders){ btnToggleShoulders.addEventListener('click', ()=>{ const next=!state.showShoulderFigures; setShoulderFiguresEnabled(next); log('toggle_shoulder_figures',{enabled:next}); }); }
 $('#btnBeginA').addEventListener('click', ()=>{swapScreens('#screenMission'); startMissions();});
 $('#btnCheck').addEventListener('click', checkMission);
 
 // init
+setShoulderFiguresEnabled(false);
 swapScreens('#screenOnboarding');

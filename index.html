@@ -17,6 +17,7 @@
       <button id="btnImport" class="ghost">Import Config (JSON)</button>
       <label class="muted" style="margin-left:auto">Tracking: <span id="trk">idle</span></label>
       <button id="btnToggleDebug" class="ghost">Debug View</button>
+      <button id="btnToggleShoulders" class="ghost">Shoulder Buddies</button>
       <label class="muted">Anchor:
   <select id="anchorMode">
     <option value="face" selected>Face</option>
@@ -33,6 +34,19 @@
     <div class="videoWrap">
       <video id="video" playsinline class="hidden"></video>
       <canvas id="debug" class="hidden"></canvas>
+    </div>
+
+    <div id="leftShoulderFigure" class="shoulderFigure" data-side="left" aria-hidden="true">
+      <div class="figureCore">
+        <div class="figureRing"></div>
+        <div class="figureSpark"></div>
+      </div>
+    </div>
+    <div id="rightShoulderFigure" class="shoulderFigure" data-side="right" aria-hidden="true">
+      <div class="figureCore">
+        <div class="figureRing"></div>
+        <div class="figureSpark"></div>
+      </div>
     </div>
 
     <div id="cursorDot" class="cursor hidden"></div>
