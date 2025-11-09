@@ -45,6 +45,26 @@ The entire lab's content is controlled by the `WEEK_CONFIG` object at the top of
 
 You can also use the **"Import Config (JSON)"** button in the app to paste a new configuration object at runtime.
 
+### Supported Widget Types
+* `"cardBin"`: A standard drag-and-drop sorting activity with multiple bins.
+* `"triadBins"`: A 3-column variant of `cardBin`, useful for triads like (Economic, Technical, Operational).
+* `"mcq"`: A standard multiple-choice question.
+* `"order"`: A re-orderable list (this widget exists in the engine but is not used in the Week 1 example).
+* `"multi"`: A container for multiple sub-widgets (like `triadBins` and `mcq`) on a single mission screen.
+
+---
+## 📊 Data Logging
+The application logs all significant user interactions to the `state.events` array in memory. This data can be exported for analysis using the:
+
+* **Download JSON** button (generates a `.jsonl` file, with one JSON object per event).
+* **Download CSV** button.
+
+This data is intended for research and analytics on student interaction patterns and performance.
+
+  // 3. Scoring Weights
+  weights: { A: 3.5, B: 3.0, C: 3.5 } // Points per mission
+};
+
 ### `WEEK_CONFIG` Schema
 
 The configuration object follows this basic structure:
@@ -91,23 +111,3 @@ let WEEK_CONFIG = {
     }
     // ... more missions
   ]
-
-### Supported Widget Types
-* `"cardBin"`: A standard drag-and-drop sorting activity with multiple bins.
-* `"triadBins"`: A 3-column variant of `cardBin`, useful for triads like (Economic, Technical, Operational).
-* `"mcq"`: A standard multiple-choice question.
-* `"order"`: A re-orderable list (this widget exists in the engine but is not used in the Week 1 example).
-* `"multi"`: A container for multiple sub-widgets (like `triadBins` and `mcq`) on a single mission screen.
-
----
-## 📊 Data Logging
-The application logs all significant user interactions to the `state.events` array in memory. This data can be exported for analysis using the:
-
-* **Download JSON** button (generates a `.jsonl` file, with one JSON object per event).
-* **Download CSV** button.
-
-This data is intended for research and analytics on student interaction patterns and performance.
-
-  // 3. Scoring Weights
-  weights: { A: 3.5, B: 3.0, C: 3.5 } // Points per mission
-};
