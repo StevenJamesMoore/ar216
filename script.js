@@ -84,13 +84,19 @@ let WEEK_CONFIG = {
 };
 
 /*************** State + utils ***************/
-const state={ participant:Math.random().toString(36).slice(2,10), mode:'idle', missionIdx:-1, events:[], lastTs:performance.now(), anchor:{x:0,y:0,s:300,ok:false}, lastPoseTs:0, hand:{x:0,y:0,visible:false,pinch:false, dragEl:null}, scores:{}, showShoulderFigures:false };
+const state={ participant:Math.random().toString(36).slice(2,10), mode:'idle', missionIdx:-1, events:[], lastTs:performance.now(), anchor:{x:0,y:0,s:300,ok:false}, lastPoseTs:0, hand:{x:0,y:0,visible:false,pinch:false, dragEl:null}, scores:{}, showShoulderFigures:false, lastShoulderPlacement:{left:null,right:null} };
 const $=s=>document.querySelector(s);
 function log(action,payload={}){const now=performance.now(); const mis = (state.missionIdx>=0? WEEK_CONFIG.missions[state.missionIdx].id : 'onboarding'); state.events.push({participant_id:state.participant, condition:state.mode, mission:mis, action, payload, timestamp_ms:Date.now(), latency_ms:Math.round(now-state.lastTs)}); state.lastTs=now;}
 function swapScreens(id){['#screenOnboarding','#screenMission','#screenWrap'].forEach(sel=>$(sel).classList.add('hidden')); $(id).classList.remove('hidden');}
 
 /*************** Pose + Hands ***************/
 const trkLabel=$('#trk'), hud=$('#hud'), cursorDot=$('#cursorDot'), leftShoulderFigure=$('#leftShoulderFigure'), rightShoulderFigure=$('#rightShoulderFigure'), btnToggleShoulders=$('#btnToggleShoulders');
+const defaultShoulderMarkup = {
+  left: leftShoulderFigure ? leftShoulderFigure.innerHTML : '',
+  right: rightShoulderFigure ? rightShoulderFigure.innerHTML : ''
+};
+let cachedOpenAIApiKey = (typeof window !== 'undefined' && window.OPENAI_API_KEY) ? window.OPENAI_API_KEY : null;
+let promptedForOpenAIApiKey = false;
 let poseDetector=null, handDetector=null
 
 let mpPose = null, mpHands = null, mpFaceMesh = null;
@@ -202,7 +208,212 @@ function handlePinchInteractions(){const pin=state.hand.pinch; const {x,y}=clien
 
 function hideShoulderFigures(){ if(leftShoulderFigure){ leftShoulderFigure.classList.remove('visible'); leftShoulderFigure.setAttribute('aria-hidden','true'); } if(rightShoulderFigure){ rightShoulderFigure.classList.remove('visible'); rightShoulderFigure.setAttribute('aria-hidden','true'); } }
 
-function setShoulderFiguresEnabled(enabled){ state.showShoulderFigures=enabled; if(btnToggleShoulders){ btnToggleShoulders.classList.toggle('active', enabled); btnToggleShoulders.textContent = enabled ? 'Hide Shoulder Buddies' : 'Shoulder Buddies'; btnToggleShoulders.setAttribute('aria-pressed', enabled?'true':'false'); } if(!enabled){ hideShoulderFigures(); } }
+function promptForShoulderBuddyIdeas(){
+  const leftDescription = prompt('Describe the left shoulder buddy (vibes, theme, mood):');
+  if(leftDescription===null){
+    return null;
+  }
+  const rightDescription = prompt('Describe the right shoulder buddy (vibes, theme, mood):');
+  if(rightDescription===null){
+    return null;
+  }
+  return { left: leftDescription.trim(), right: rightDescription.trim() };
+}
+
+async function generateShoulderBuddyMarkup(side, description){
+  const idea = (description && description.trim()) ? description.trim() : `friendly ${side} buddy`;
+  if(!cachedOpenAIApiKey){
+    if(!promptedForOpenAIApiKey){
+      const key = prompt('Enter your OpenAI API key to generate shoulder buddies:');
+      promptedForOpenAIApiKey = true;
+      if(key){
+        cachedOpenAIApiKey = key.trim();
+      }
+    }
+    if(!cachedOpenAIApiKey){
+      throw new Error('OpenAI API key is required to generate shoulder buddies.');
+    }
+  }
+
+  const body = {
+    model: 'gpt-5-mini',
+    input: [
+      { role: 'system', content: [{ type: 'text', text: 'You output HTML/CSS snippets for lightweight avatar figures. Return only safe markup (no <script> tags).' }] },
+      { role: 'user', content: [{ type: 'text', text: `Create whimsical HTML markup for a ${side} shoulder buddy avatar described as: ${idea}. Only output markup without explanations.` }] }
+    ]
+  };
+
+  let response;
+  try {
+    response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cachedOpenAIApiKey}`
+      },
+      body: JSON.stringify(body)
+    });
+  } catch (networkErr) {
+    throw new Error(`Network error while contacting OpenAI: ${networkErr.message}`);
+  }
+
+  let payloadText = '';
+  try {
+    payloadText = await response.text();
+  } catch (readErr) {
+    throw new Error(`Unable to read OpenAI response: ${readErr.message}`);
+  }
+
+  let payload = null;
+  if(payloadText){
+    try {
+      payload = JSON.parse(payloadText);
+    } catch (_) {
+      payload = null;
+    }
+  }
+
+  if(!response.ok){
+    const errMessage = (payload && (payload.error?.message || payload.message)) ? payload.error?.message || payload.message : `${response.status} ${response.statusText}`;
+    throw new Error(`OpenAI request failed for ${side} shoulder buddy: ${errMessage}`);
+  }
+
+  let markup = '';
+  if(payload && Array.isArray(payload.output)){
+    markup = payload.output.map(item => {
+      if(!item) return '';
+      const content = Array.isArray(item.content) ? item.content : [];
+      return content.map(piece => (piece && piece.text) ? piece.text : '').join('');
+    }).join('');
+  }
+
+  if(!markup && payload){
+    if(Array.isArray(payload.output_text)){
+      markup = payload.output_text.join('');
+    } else if(typeof payload.output_text === 'string'){
+      markup = payload.output_text;
+    }
+  }
+
+  markup = (markup || '').trim();
+  if(!markup){
+    throw new Error('OpenAI returned an empty markup response.');
+  }
+
+  return markup;
+}
+
+function sanitizeBuddyMarkup(markup){
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = markup || '';
+  wrapper.querySelectorAll('script').forEach(node => node.remove());
+  wrapper.querySelectorAll('*').forEach(node => {
+    [...node.attributes].forEach(attr => {
+      if(/^on/i.test(attr.name)){
+        node.removeAttribute(attr.name);
+      }
+    });
+  });
+  return wrapper.innerHTML;
+}
+
+async function setShoulderFiguresEnabled(enabled){
+  if(!enabled){
+    state.showShoulderFigures = false;
+    if(btnToggleShoulders){
+      btnToggleShoulders.classList.remove('active');
+      btnToggleShoulders.textContent = 'Shoulder Buddies';
+      btnToggleShoulders.setAttribute('aria-pressed','false');
+      btnToggleShoulders.disabled = false;
+      btnToggleShoulders.classList.remove('loading');
+    }
+    if(leftShoulderFigure){
+      leftShoulderFigure.innerHTML = defaultShoulderMarkup.left;
+    }
+    if(rightShoulderFigure){
+      rightShoulderFigure.innerHTML = defaultShoulderMarkup.right;
+    }
+    hideShoulderFigures();
+    return;
+  }
+
+  const ideas = promptForShoulderBuddyIdeas();
+  if(!ideas){
+    state.showShoulderFigures = false;
+    if(btnToggleShoulders){
+      btnToggleShoulders.classList.remove('active');
+      btnToggleShoulders.textContent = 'Shoulder Buddies';
+      btnToggleShoulders.setAttribute('aria-pressed','false');
+      btnToggleShoulders.disabled = false;
+      btnToggleShoulders.classList.remove('loading');
+    }
+    hideShoulderFigures();
+    return;
+  }
+
+  if(btnToggleShoulders){
+    btnToggleShoulders.disabled = true;
+    btnToggleShoulders.textContent = 'Loading Shoulder Buddies…';
+    btnToggleShoulders.classList.add('loading');
+  }
+
+  try {
+    const [leftMarkup, rightMarkup] = await Promise.all([
+      generateShoulderBuddyMarkup('left', ideas.left),
+      generateShoulderBuddyMarkup('right', ideas.right)
+    ]);
+
+    if(leftShoulderFigure){
+      const safeLeft = sanitizeBuddyMarkup(leftMarkup) || defaultShoulderMarkup.left;
+      leftShoulderFigure.innerHTML = safeLeft;
+      const lastLeft = state.lastShoulderPlacement?.left;
+      if(lastLeft && lastLeft.point){
+        placeShoulderFigure(leftShoulderFigure, lastLeft.point, lastLeft.size || 80);
+      } else if(state.anchor && state.anchor.ok){
+        const fallbackSize = Math.min(140, Math.max(60, (state.anchor.s || 80) * 0.45));
+        const fallbackPoint = { x: state.anchor.x - (fallbackSize * 0.6), y: state.anchor.y };
+        placeShoulderFigure(leftShoulderFigure, fallbackPoint, fallbackSize);
+      }
+    }
+
+    if(rightShoulderFigure){
+      const safeRight = sanitizeBuddyMarkup(rightMarkup) || defaultShoulderMarkup.right;
+      rightShoulderFigure.innerHTML = safeRight;
+      const lastRight = state.lastShoulderPlacement?.right;
+      if(lastRight && lastRight.point){
+        placeShoulderFigure(rightShoulderFigure, lastRight.point, lastRight.size || 80);
+      } else if(state.anchor && state.anchor.ok){
+        const fallbackSize = Math.min(140, Math.max(60, (state.anchor.s || 80) * 0.45));
+        const fallbackPoint = { x: state.anchor.x + (fallbackSize * 0.6), y: state.anchor.y };
+        placeShoulderFigure(rightShoulderFigure, fallbackPoint, fallbackSize);
+      }
+    }
+
+    state.showShoulderFigures = true;
+    if(btnToggleShoulders){
+      btnToggleShoulders.classList.add('active');
+      btnToggleShoulders.textContent = 'Hide Shoulder Buddies';
+      btnToggleShoulders.setAttribute('aria-pressed','true');
+    }
+  } catch (err) {
+    console.error('Failed to generate shoulder buddies', err);
+    alert(`Unable to generate shoulder buddies: ${err.message}`);
+    log('shoulder_buddy_error', { error: err.message });
+    if(leftShoulderFigure){
+      leftShoulderFigure.innerHTML = defaultShoulderMarkup.left;
+    }
+    if(rightShoulderFigure){
+      rightShoulderFigure.innerHTML = defaultShoulderMarkup.right;
+    }
+    await setShoulderFiguresEnabled(false);
+    return;
+  } finally {
+    if(btnToggleShoulders){
+      btnToggleShoulders.disabled = false;
+      btnToggleShoulders.classList.remove('loading');
+    }
+  }
+}
 
 function placeShoulderFigure(el, point, size){ if(!el) return; el.style.width=`${size}px`; el.style.height=`${size}px`; el.style.left=`${point.x}px`; el.style.top=`${point.y - size*0.48}px`; el.classList.add('visible'); el.setAttribute('aria-hidden','false'); }
 
@@ -229,16 +440,24 @@ function updateShoulderFigures(poseKp){
 
   if(leftPoint){
     placeShoulderFigure(leftShoulderFigure, leftPoint, baseSize);
-  } else if(leftShoulderFigure){
-    leftShoulderFigure.classList.remove('visible');
-    leftShoulderFigure.setAttribute('aria-hidden','true');
+    state.lastShoulderPlacement.left = { point: leftPoint, size: baseSize };
+  } else {
+    state.lastShoulderPlacement.left = null;
+    if(leftShoulderFigure){
+      leftShoulderFigure.classList.remove('visible');
+      leftShoulderFigure.setAttribute('aria-hidden','true');
+    }
   }
 
   if(rightPoint){
     placeShoulderFigure(rightShoulderFigure, rightPoint, baseSize);
-  } else if(rightShoulderFigure){
-    rightShoulderFigure.classList.remove('visible');
-    rightShoulderFigure.setAttribute('aria-hidden','true');
+    state.lastShoulderPlacement.right = { point: rightPoint, size: baseSize };
+  } else {
+    state.lastShoulderPlacement.right = null;
+    if(rightShoulderFigure){
+      rightShoulderFigure.classList.remove('visible');
+      rightShoulderFigure.setAttribute('aria-hidden','true');
+    }
   }
 }
 function drawPoseSkeleton(ctx,toCanvas,kp){const conn=[['left_shoulder','right_shoulder'],['left_shoulder','left_elbow'],['left_elbow','left_wrist'],['right_shoulder','right_elbow'],['right_elbow','right_wrist'],['left_shoulder','left_hip'],['right_shoulder','right_hip'],['left_hip','right_hip']]; ctx.lineWidth=2; ctx.strokeStyle='white'; conn.forEach(([a,b])=>{const A=getPointByName(kp,a), B=getPointByName(kp,b); if(!(A&&B)) return; const Ac=toCanvas(A), Bc=toCanvas(B); ctx.beginPath(); ctx.moveTo(Ac.x,Ac.y); ctx.lineTo(Bc.x,Bc.y); ctx.stroke();}); ctx.fillStyle='white'; kp.forEach(pt=>{ if(pt.score>0.3){ const c=toCanvas(pt); ctx.beginPath(); ctx.arc(c.x,c.y,2,0,Math.PI*2); ctx.fill(); } });}
@@ -509,7 +728,7 @@ const dlg=$('#importDlg'); $('#btnImport').addEventListener('click', ()=>dlg.sho
 $('#btnStart').addEventListener('click', startCamera);
 $('#btn2D').addEventListener('click', ()=>{use2D(false); log('start_2d')});
 $('#btnToggleDebug').addEventListener('click', ()=>$('#debug').classList.toggle('hidden'));
-if(btnToggleShoulders){ btnToggleShoulders.addEventListener('click', ()=>{ const next=!state.showShoulderFigures; setShoulderFiguresEnabled(next); log('toggle_shoulder_figures',{enabled:next}); }); }
+if(btnToggleShoulders){ btnToggleShoulders.addEventListener('click', async ()=>{ const next=!state.showShoulderFigures; await setShoulderFiguresEnabled(next); log('toggle_shoulder_figures',{enabled:state.showShoulderFigures}); }); }
 $('#btnBeginA').addEventListener('click', ()=>{swapScreens('#screenMission'); startMissions();});
 $('#btnCheck').addEventListener('click', checkMission);
 
