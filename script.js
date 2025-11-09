@@ -238,8 +238,8 @@ async function generateShoulderBuddyMarkup(side, description){
   const body = {
     model: 'gpt-5-mini',
     input: [
-      { role: 'system', content: [{ type: 'text', text: 'You output HTML/CSS snippets for lightweight avatar figures. Return only safe markup (no <script> tags).' }] },
-      { role: 'user', content: [{ type: 'text', text: `Create whimsical HTML markup for a ${side} shoulder buddy avatar described as: ${idea}. Only output markup without explanations.` }] }
+      { role: 'system', content: [{ type: 'input_text', text: 'You output HTML/CSS snippets for lightweight avatar figures. Return only safe markup (no <script> tags).' }] },
+      { role: 'user', content: [{ type: 'input_text', text: `Create whimsical HTML markup for an avatar described as: ${idea}. Only output markup without explanations.` }] }
     ]
   };
 
