@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Week 1 — Core AR Scaffold (Pose + Hands) · Reusable for Weeks 2–5</title>
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1 id="appTitle">Week 1 — Core Pose‑Tracked AR Scaffold</h1>
+    <div class="meta">Reusable AR mini-lab: onboarding · Missions A/B/C · pose + hands · logging · JSON/CSV export</div>
+    <div class="bar">
+      <button id="btnStart" class="primary">Start with Camera (Pose + Hands)</button>
+      <button id="btn2D" class="ghost">No‑camera Mode (2D)</button>
+      <button id="btnImport" class="ghost">Import Config (JSON)</button>
+      <label class="muted" style="margin-left:auto">Tracking: <span id="trk">idle</span></label>
+      <button id="btnToggleDebug" class="ghost">Debug View</button>
+      <label class="muted">Anchor:
+  <select id="anchorMode">
+    <option value="face" selected>Face</option>
+    <option value="torso">Torso</option>
+  </select>
+</label>
+<button id="btnRecenter" class="ghost">Recenter</button>
+      <button id="btnDownloadJSON" class="ghost">Download JSON</button>
+      <button id="btnDownloadCSV" class="ghost">Download CSV</button>
+    </div>
+  </header>
+
+  <div class="viewport" id="viewport">
+    <div class="videoWrap">
+      <video id="video" playsinline class="hidden"></video>
+      <canvas id="debug" class="hidden"></canvas>
+    </div>
+
+    <div id="cursorDot" class="cursor hidden"></div>
+
+    <div id="hud" class="hud">
+      <div class="panel">
+        <div id="screenOnboarding">
+          <div class="title">Onboarding</div>
+          <p class="muted">Click **Start with Camera** or **No-camera (2D)**. Pinch to grab chips; mouse/trackpad also works. Missions auto-advance after each check.</p>
+          <div class="bar"><button id="btnBeginA" class="primary">Begin Mission A</button></div>
+        </div>
+
+        <div id="screenMission" class="hidden">
+          <div class="title"><span id="missionTitle">Mission</span></div>
+          <div id="missionBody" class="missions"></div>
+          <div class="footer">
+            <button id="btnCheck" class="primary">Check Mission</button>
+            <div id="missionScore" class="score"></div>
+          </div>
+        </div>
+
+        <div id="screenWrap" class="hidden">
+          <div class="title">Wrap — Confidence & Download</div>
+          <div class="bar" style="gap:10px; align-items:center">
+            <label>Confidence (0–100): <input id="confidence" type="range" min="0" max="100" value="50"></label>
+            <span id="confVal">50</span>
+          </div>
+          <div class="bar"><textarea id="reflection" rows="3" style="width:100%" placeholder="What part was trickiest?"></textarea></div>
+          <div class="footer"><button id="btnFinish" class="good">Submit & Finish</button><div id="finalScore" class="score"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <dialog id="importDlg">
+    <form method="dialog">
+      <h3>Import Week Config (JSON)</h3>
+      <p class="muted">Paste a config object matching the <code>WEEK_CONFIG</code> schema (see inline example). This lets you reuse the scaffold across weeks.</p>
+      <textarea id="importText" rows="14" style="width:100%" placeholder="{ \"week\": 1, \"title\": \"...\", \"missions\": [ ... ] }"></textarea>
+      <div class="bar" style="justify-content:flex-end">
+        <button value="cancel" class="ghost">Cancel</button>
+        <button id="btnApplyImport" class="primary">Apply</button>
+      </div>
+    </form>
+  </dialog>
+
+<script src="script.js"></script>
+</body>
+</html>

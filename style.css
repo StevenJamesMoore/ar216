@@ -1,0 +1,54 @@
+:root{ --bg:#0b0f17; --panel:#121826; --muted:#a9b3c7; --text:#e8eefc; --accent:#6aa6ff; --good:#22c55e; --bad:#ef4444; --card:#0e1422; --stroke:rgba(255,255,255,.08) }
+html,body{height:100%}
+body{margin:0; font:16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; background:var(--bg); color:var(--text)}
+header{position:sticky; top:0; z-index:100; padding:10px 16px; background:linear-gradient(180deg, rgba(18,24,38,.9), rgba(18,24,38,.6)); border-bottom:1px solid var(--stroke); backdrop-filter: blur(6px)}
+header h1{margin:0; font-size:18px}
+header .meta{font-size:12px; color:var(--muted)}
+.bar{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:6px}
+button, select, input[type="text"], input[type="number"], input[type="range"], textarea{background:#1a2133; color:var(--text); border:1px solid var(--stroke); border-radius:10px; padding:8px 10px; font:inherit}
+button.primary{background:var(--accent); color:#08111f; border:none; font-weight:600}
+button.ghost{background:transparent; border:1px dashed var(--stroke); color:var(--muted)}
+button.good{background:var(--good); color:#06120b; border:none; font-weight:700}
+.hidden{display:none !important}
+
+.viewport{position:relative; width:100%; height:calc(100vh - 92px); overflow:hidden}
+.videoWrap{position:absolute; inset:0; display:grid; place-items:center}
+video{max-width:100%; max-height:100%; transform:scaleX(-1); opacity:.12}
+canvas#debug{position:absolute; right:8px; bottom:8px; width:260px; height:190px; border:1px solid var(--stroke); border-radius:8px; opacity:.95; background:rgba(0,0,0,.25)}
+
+.cursor{position:absolute; z-index: 110; width:16px; height:16px; border:2px solid var(--accent); border-radius:50%; pointer-events:none; transform:translate(-50%,-50%); box-shadow:0 0 0 2px rgba(106,166,255,.2)}    .cursor.grab{background:var(--accent); border-color:#08111f}
+
+/* [!FIX] Changed left/top to 0 and removed transform */
+.hud{position:absolute; left:0; top:0; width:min(1024px, 96vw)}
+.panel{background:var(--panel); border:1px solid var(--stroke); border-radius:16px; padding:14px; box-shadow:0 10px 30px rgba(0,0,0,.3)}
+.title{font-weight:700; font-size:18px; margin:6px 0 10px}
+.muted{color:var(--muted)}
+.missions{display:grid; gap:14px}
+.card{background:var(--card); border:1px solid var(--stroke); border-radius:16px; padding:12px}
+.card h3{margin:0 0 8px; font-size:16px}
+
+/* Generic widgets */
+.deck{display:grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap:10px}
+.chip{background:#0c1322; border:1px solid var(--stroke); border-radius:12px; padding:8px 10px; cursor:grab}
+.chip.lifted{outline:2px dashed var(--accent)}
+.bins{display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:10px}
+.bin{min-height:110px; border:1px dashed var(--stroke); border-radius:12px; padding:8px}
+.bin h4{margin:0 0 8px; font-size:13px; color:var(--muted)}
+.drop{min-height:60px}
+
+.orderList{list-style:none; padding:0; margin:0; display:grid; gap:8px}
+.orderItem{background:#0c1322; border:1px solid var(--stroke); border-radius:12px; padding:8px 10px; cursor:grab}
+
+.mcq{display:grid; gap:8px}
+
+.triad{display:grid; grid-template-columns: repeat(3, 1fr); gap:10px}
+.footer{display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:12px}
+.score{font-weight:700}
+
+/* Importer modal */
+dialog{background:#0f1626; color:var(--text); border:1px solid var(--stroke); border-radius:12px; width:min(900px, 96vw)}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+.hud.interacting {
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+}
